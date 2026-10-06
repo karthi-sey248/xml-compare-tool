@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>XML Structure Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel-bg: #ffffff; --text: #1f2430; --muted: #6b7280;
+    --border: #e2e4e9; --header-bg: #1f2a44; --header-text: #ffffff;
+    --accent: #3f6fee; --accent-text: #ffffff;
+    --front: #dbe9f8; --front-border: #2e74b5; --front-text: #1a3a5c;
+    --body: #dcf3dc; --body-border: #38761d; --body-text: #204b0f;
+    --back: #fbe6d0; --back-border: #b45f06; --back-text: #6b3803;
+    --other: #ececec; --other-border: #6b6b6b; --other-text: #3a3a3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161c; --panel-bg: #1b1e27; --text: #e7e9ee; --muted: #9aa0ab;
+      --border: #2c303c; --header-bg: #0f1320; --header-text: #eef0f5;
+      --accent: #6a8bf5; --accent-text: #10131c;
+      --front: #16283c; --front-border: #4f8bd1; --front-text: #cfe3f7;
+      --body: #16321a; --body-border: #57a83a; --body-text: #d3f0cc;
+      --back: #3a2712; --back-border: #d98a2b; --back-text: #f5dcb8;
+      --other: #2a2c33; --other-border: #8a8f99; --other-text: #d6d8dd;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161c; --panel-bg: #1b1e27; --text: #e7e9ee; --muted: #9aa0ab;
+    --border: #2c303c; --header-bg: #0f1320; --header-text: #eef0f5;
+    --accent: #6a8bf5; --accent-text: #10131c;
+    --front: #16283c; --front-border: #4f8bd1; --front-text: #cfe3f7;
+    --body: #16321a; --body-border: #57a83a; --body-text: #d3f0cc;
+    --back: #3a2712; --back-border: #d98a2b; --back-text: #f5dcb8;
+    --other: #2a2c33; --other-border: #8a8f99; --other-text: #d6d8dd;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+  .toolbar { background: var(--header-bg); color: var(--header-text); padding: 14px 18px;
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .toolbar h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 600; white-space: nowrap; }
+  .file-slot { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 6px 10px; }
+  .file-slot label { font-size: 12px; opacity: 0.85; }
+  .file-slot input[type=file] { color: var(--header-text); font-size: 12px; max-width: 220px; }
+  button { font-size: 13px; font-weight: 600; border: none; border-radius: 8px; padding: 8px 14px;
+    cursor: pointer; background: var(--accent); color: var(--accent-text); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--header-text); border: 1px solid rgba(255,255,255,0.35); }
+  .status { font-size: 12px; opacity: 0.9; margin-left: auto; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 80px 20px; color: var(--muted); text-align: center; gap: 10px; }
+  .empty-state .big { font-size: 40px; }
+
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px; margin: 18px 0 28px; }
+  .summary-card { border-radius: 12px; padding: 14px 16px; border-left: 5px solid; background: var(--panel-bg);
+    border: 1px solid var(--border); border-left-width: 5px; }
+  .summary-card h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .summary-card .big-num { font-size: 26px; font-weight: 700; }
+  .summary-card .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .summary-card.front { border-left-color: var(--front-border); }
+  .summary-card.body { border-left-color: var(--body-border); }
+  .summary-card.back { border-left-color: var(--back-border); }
+  .summary-card.other { border-left-color: var(--other-border); }
+
+  .section-block { margin-bottom: 26px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .section-head { padding: 12px 16px; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+  .section-head .count-pill { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 999px;
+    background: rgba(255,255,255,0.35); }
+  .section-head.front { background: var(--front); color: var(--front-text); }
+  .section-head.body { background: var(--body); color: var(--body-text); }
+  .section-head.back { background: var(--back); color: var(--back-text); }
+  .section-head.other { background: var(--other); color: var(--other-text); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel-bg); font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
+  td.tag { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; }
+  td.cls { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
+  td.attrs { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; }
+  td.count { text-align: center; font-weight: 700; }
+  td.line { text-align: center; color: var(--muted); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { filter: brightness(0.97); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) tr:hover td { filter: brightness(1.15); } }
+  :root[data-theme="dark"] tr:hover td { filter: brightness(1.15); }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+
+  tr.clickable { cursor: pointer; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15,18,25,0.55);
+    display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--panel-bg); border-radius: 12px; max-width: 680px; width: 100%;
+    max-height: 80vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.35); border: 1px solid var(--border); }
+  .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; }
+  .modal-head h2 { font-size: 14px; margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .modal-head button { background: transparent; color: var(--muted); font-size: 18px; padding: 2px 8px; }
+  .modal-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 16px; }
+  .modal-meta { font-size: 12px; color: var(--muted); }
+  .modal-block h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 6px; }
+  .modal-block pre { margin: 0; padding: 12px 14px; border-radius: 8px; font-size: 12.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap;
+    word-break: break-word; border: 1px solid var(--border); background: var(--bg); line-height: 1.6; }
+  .modal-block pre .tagname { color: #c0392b; font-weight: 700; }
+  .modal-block pre .attrname { color: #2e74b5; }
+  .modal-block pre .attrval { color: #38761d; }
+  .modal-block pre .content-placeholder { color: var(--muted); font-style: italic; }
+</style>
+<script src="js/auth.js"></script>
+<script>XMLCompareAuth.guard();</script>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>XML Structure Analyzer</h1>
+    <div class="file-slot">
+      <label>XML File</label>
+      <input type="file" id="xmlFile" accept=".xml,.xhtml,.txt">
+    </div>
+    <button id="analyzeBtn" disabled>Analyze</button>
+    <button class="ghost" id="downloadBtn" disabled>&#8681; Download Excel Report</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div class="container" id="container">
+    <div class="empty-state">
+      <div class="big">&#128269;</div>
+      Upload any XML / XHTML file above, then click Analyze.<br>
+      "This will break down what tags, classes, and attributes are used in the Front Matter, Body Matter, Back Matter (and root-level metadata)."
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="modalTitle">Tag structure</h2>
+        <button id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-meta" id="modalMeta"></div>
+        <div class="modal-block">
+          <h3>Example structure (start tag &rarr; content &rarr; end tag)</h3>
+          <pre id="modalStructure"></pre>
+        </div>
+        <div class="modal-block">
+          <h3>All attributes seen on this tag/class across the document</h3>
+          <pre id="modalAllAttrs"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ---------------- XML tokenizer / tree builder ----------------
+function decodeEntities(s) {
+  if (!s) return s;
+  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&amp;/g, '&');
+}
+function parseAttrs(attrStr) {
+  const attrs = {};
+  const re = /([a-zA-Z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+  let m;
+  while ((m = re.exec(attrStr)) !== null) attrs[m[1]] = decodeEntities(m[2] !== undefined ? m[2] : m[3]);
+  return attrs;
+}
+function makeNode(tag, attrs, line) { return { tag, attrs, children: [], text: '', tail: '', line, _lastChild: null }; }
+
+function parseXML(source) {
+  const re = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!DOCTYPE[\s\S]*?>|<(\/?)([a-zA-Z_:][\w:.-]*)((?:\s+[a-zA-Z_:][\w:.-]*\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>/g;
+  let lastIndex = 0, line = 1, m;
+  const stack = [];
+  let root = null;
+  function countLines(upto) { for (let i = lastIndex; i < upto; i++) if (source.charCodeAt(i) === 10) line++; }
+  function appendText(txt) {
+    if (!txt || stack.length === 0) return;
+    const decoded = decodeEntities(txt);
+    const parent = stack[stack.length - 1];
+    if (parent._lastChild) parent._lastChild.tail += decoded; else parent.text += decoded;
+  }
+  while ((m = re.exec(source)) !== null) {
+    const matchStart = m.index;
+    const rawText = source.slice(lastIndex, matchStart);
+    countLines(matchStart);
+    lastIndex = matchStart;
+    appendText(rawText);
+    const whole = m[0];
+    if (whole.startsWith('<!--') || whole.startsWith('<![CDATA[') || whole.startsWith('<?') || whole.startsWith('<!DOCTYPE')) {
+      if (whole.startsWith('<![CDATA[')) appendText(whole.slice(9, -3));
+      countLines(re.lastIndex); lastIndex = re.lastIndex; continue;
+    }
+    const closing = m[1] === '/', tag = m[2], attrStr = m[3] || '', selfClose = m[4] === '/';
+    const tagLine = line;
+    if (closing) { stack.pop(); }
+    else {
+      const node = makeNode(tag, parseAttrs(attrStr), tagLine);
+      if (stack.length > 0) { const parent = stack[stack.length - 1]; parent.children.push(node); parent._lastChild = node; }
+      else root = node;
+      if (!selfClose) stack.push(node);
+    }
+    countLines(re.lastIndex); lastIndex = re.lastIndex;
+  }
+  return root;
+}
+
+// ---------------- Structure analysis ----------------
+const SECTION_ORDER = ['Front Matter', 'Body Matter', 'Back Matter', 'Other / Root Level'];
+const SECTION_CLASS = { 'Front Matter': 'front', 'Body Matter': 'body', 'Back Matter': 'back', 'Other / Root Level': 'other' };
+
+function classifySection(el) {
+  const cls = (el.attrs.class || '').trim().toLowerCase();
+  if (cls === 'front') return 'Front Matter';
+  if (cls === 'body') return 'Body Matter';
+  if (cls === 'back') return 'Back Matter';
+  return null;
+}
+function norm(text, maxLen = 70) {
+  if (!text) return '';
+  const t = text.replace(/\s+/g, ' ').trim();
+  return t.length > maxLen ? t.slice(0, maxLen) + '...' : t;
+}
+function innerTextSample(el, maxLen = 90) {
+  const parts = [];
+  function rec(e) {
+    if (e.text) parts.push(e.text);
+    e.children.forEach((c) => { rec(c); if (c.tail) parts.push(c.tail); });
+  }
+  rec(el);
+  return norm(parts.join(' '), maxLen);
+}
+
+function analyze(root) {
+  const stats = new Map(); // key "section||tag||class" -> entry
+  function record(section, el) {
+    const cls = el.attrs.class || '';
+    const key = section + '||' + el.tag + '||' + cls;
+    if (!stats.has(key)) {
+      stats.set(key, {
+        section, tag: el.tag, cls,
+        attrNames: new Set(),
+        count: 0,
+        exampleLine: el.line,
+        exampleText: innerTextSample(el),
+        exampleAttrs: Object.assign({}, el.attrs),
+        exampleChildCount: el.children.length,
+        exampleChildTags: el.children.slice(0, 6).map((c) => c.tag + (c.attrs.class ? `.${c.attrs.class}` : ''))
+      });
+    }
+    const entry = stats.get(key);
+    entry.count++;
+    Object.keys(el.attrs).forEach((k) => { if (k !== 'class') entry.attrNames.add(k); });
+  }
+  function walk(el, currentSection) {
+    const newSection = classifySection(el) || currentSection;
+    record(newSection, el);
+    el.children.forEach((c) => walk(c, newSection));
+  }
+  walk(root, 'Other / Root Level');
+  return stats;
+}
+
+// ---------------- Rendering ----------------
+const fileInput = document.getElementById('xmlFile');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const container = document.getElementById('container');
+const statusEl = document.getElementById('status');
+
+let fileContent = null;
+let lastStats = null;
+
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => { fileContent = reader.result; analyzeBtn.disabled = false; };
+  reader.readAsText(f);
+});
+
+function sectionClassKey(section) { return SECTION_CLASS[section] || 'other'; }
+
+function render(stats) {
+  container.innerHTML = '';
+
+  const totals = {};
+  SECTION_ORDER.forEach((s) => totals[s] = { distinct: 0, total: 0 });
+  stats.forEach((e) => {
+    if (!totals[e.section]) totals[e.section] = { distinct: 0, total: 0 };
+    totals[e.section].distinct++;
+    totals[e.section].total += e.count;
+  });
+
+  const summaryGrid = document.createElement('div');
+  summaryGrid.className = 'summary-grid';
+  SECTION_ORDER.forEach((section) => {
+    const t = totals[section] || { distinct: 0, total: 0 };
+    const card = document.createElement('div');
+    card.className = 'summary-card ' + sectionClassKey(section);
+    card.innerHTML = `<h3>${section}</h3><div class="big-num">${t.total}</div><div class="sub">${t.distinct} distinct tag/class combos</div>`;
+    summaryGrid.appendChild(card);
+  });
+  container.appendChild(summaryGrid);
+
+  SECTION_ORDER.forEach((section) => {
+    const rows = Array.from(stats.values())
+      .filter((e) => e.section === section)
+      .sort((a, b) => a.tag.localeCompare(b.tag) || a.cls.localeCompare(b.cls));
+    if (rows.length === 0) return;
+
+    const block = document.createElement('div');
+    block.className = 'section-block';
+    const head = document.createElement('div');
+    head.className = 'section-head ' + sectionClassKey(section);
+    head.innerHTML = `<span>${section}</span><span class="count-pill">${rows.length} tag/class combos &middot; ${totals[section].total} elements</span>`;
+    block.appendChild(head);
+
+    const table = document.createElement('table');
+    table.innerHTML = `<thead><tr>
+      <th>Tag</th><th>Class</th><th>Attributes Used</th><th>Count</th><th>First Line</th><th>Sample Text</th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+    rows.forEach((r) => {
+      const tr = document.createElement('tr');
+      tr.className = 'clickable';
+      tr.innerHTML = `
+        <td class="tag">${escapeHtml(r.tag)}</td>
+        <td class="cls">${escapeHtml(r.cls)}</td>
+        <td class="attrs">${escapeHtml(Array.from(r.attrNames).join(', '))}</td>
+        <td class="count">${r.count}</td>
+        <td class="line">${r.exampleLine ?? ''}</td>
+        <td>${escapeHtml(r.exampleText)}</td>`;
+      tr.addEventListener('click', () => openModal(r));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    block.appendChild(table);
+    container.appendChild(block);
+  });
+}
+
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ---------------- Modal (example structure popup) ----------------
+const modalOverlay = document.getElementById('modalOverlay');
+const modalTitle = document.getElementById('modalTitle');
+const modalMeta = document.getElementById('modalMeta');
+const modalStructure = document.getElementById('modalStructure');
+const modalAllAttrs = document.getElementById('modalAllAttrs');
+
+function buildTagHtml(tag, attrs) {
+  let html = `<span class="tagname">&lt;${escapeHtml(tag)}</span>`;
+  Object.keys(attrs).forEach((k) => {
+    html += ` <span class="attrname">${escapeHtml(k)}</span>=<span class="attrval">"${escapeHtml(attrs[k])}"</span>`;
+  });
+  html += `<span class="tagname">&gt;</span>`;
+  return html;
+}
+
+function openModal(r) {
+  modalTitle.textContent = `<${r.tag}${r.cls ? ' class="' + r.cls + '"' : ''}>`;
+  modalMeta.textContent = `Section: ${r.section}   |   Occurs ${r.count} time(s) in this document   |   First seen at line ${r.exampleLine ?? '—'}`;
+
+  const openTagHtml = buildTagHtml(r.tag, r.exampleAttrs);
+  const closeTagHtml = `<span class="tagname">&lt;/${escapeHtml(r.tag)}&gt;</span>`;
+
+  let innerHtml;
+  if (r.exampleChildCount > 0) {
+    const childList = r.exampleChildTags.length
+      ? r.exampleChildTags.map((t) => `&lt;${escapeHtml(t)}&gt;...&lt;/${escapeHtml(t.split('.')[0])}&gt;`).join('\n  ')
+      : '';
+    const textLine = r.exampleText ? `\n  <span class="content-placeholder">// combined text: "${escapeHtml(r.exampleText)}"</span>` : '';
+    innerHtml = `\n  <span class="content-placeholder">[ contains ${r.exampleChildCount} child element(s) ]</span>\n  ${childList}${textLine}\n`;
+  } else if (r.exampleText) {
+    innerHtml = `\n  ${escapeHtml(r.exampleText)}\n`;
+  } else {
+    innerHtml = `<span class="content-placeholder">(empty)</span>`;
+  }
+
+  modalStructure.innerHTML = openTagHtml + innerHtml + closeTagHtml;
+  modalAllAttrs.textContent = Array.from(r.attrNames).length
+    ? Array.from(r.attrNames).join(', ')
+    : '(no attributes other than class)';
+
+  modalOverlay.classList.add('show');
+}
+
+document.getElementById('modalClose').addEventListener('click', () => modalOverlay.classList.remove('show'));
+modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.classList.remove('show'); });
+
+analyzeBtn.addEventListener('click', () => {
+  if (!fileContent) return;
+  try {
+    const root = parseXML(fileContent);
+    lastStats = analyze(root);
+    render(lastStats);
+    downloadBtn.disabled = false;
+    statusEl.textContent = `${lastStats.size} distinct tag/class combinations found`;
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + err.message;
+  }
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!lastStats) return;
+  const SECTION_FILL = { 'Front Matter': 'DDEBF7', 'Body Matter': 'D9F2D9', 'Back Matter': 'FDE9D9', 'Other / Root Level': 'EDEDED' };
+  const headers = ['S.No', 'Section', 'Tag', 'Class', 'Attributes Used', 'Occurrence Count', 'First Line No', 'Sample Text'];
+  const rows = Array.from(lastStats.values()).sort((a, b) => {
+    const ai = SECTION_ORDER.indexOf(a.section), bi = SECTION_ORDER.indexOf(b.section);
+    if (ai !== bi) return ai - bi;
+    return a.tag.localeCompare(b.tag) || a.cls.localeCompare(b.cls);
+  });
+  const aoa = [headers];
+  rows.forEach((r, idx) => {
+    aoa.push([idx + 1, r.section, r.tag, r.cls, Array.from(r.attrNames).join(', '), r.count, r.exampleLine ?? '', r.exampleText]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 8 }, { wch: 20 }, { wch: 22 }, { wch: 22 }, { wch: 45 }, { wch: 16 }, { wch: 14 }, { wch: 45 }];
+  ws['!autofilter'] = { ref: `A1:H${aoa.length}` };
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let C = range.s.c; C <= range.e.c; C++) {
+    const addr = XLSX.utils.encode_cell({ r: 0, c: C });
+    if (ws[addr]) ws[addr].s = { fill: { fgColor: { rgb: '1F2A44' } }, font: { color: { rgb: 'FFFFFF' }, bold: true }, alignment: { horizontal: 'center' } };
+  }
+  rows.forEach((r, idx) => {
+    const color = SECTION_FILL[r.section] || 'FFFFFF';
+    for (let C = 0; C <= 7; C++) {
+      const addr = XLSX.utils.encode_cell({ r: idx + 1, c: C });
+      if (ws[addr]) ws[addr].s = { fill: { fgColor: { rgb: color } } };
+    }
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'XML Structure Report');
+
+  // Summary sheet
+  const summaryAoa = [['Section', 'Distinct Tag/Class Combinations', 'Total Elements']];
+  const totals = {};
+  SECTION_ORDER.forEach((s) => totals[s] = { distinct: 0, total: 0 });
+  lastStats.forEach((e) => { if (!totals[e.section]) totals[e.section] = { distinct: 0, total: 0 }; totals[e.section].distinct++; totals[e.section].total += e.count; });
+  SECTION_ORDER.forEach((s) => summaryAoa.push([s, totals[s].distinct, totals[s].total]));
+  const ws2 = XLSX.utils.aoa_to_sheet(summaryAoa);
+  ws2['!cols'] = [{ wch: 26 }, { wch: 30 }, { wch: 16 }];
+  for (let C = 0; C <= 2; C++) {
+    const addr = XLSX.utils.encode_cell({ r: 0, c: C });
+    if (ws2[addr]) ws2[addr].s = { fill: { fgColor: { rgb: '1F2A44' } }, font: { color: { rgb: 'FFFFFF' }, bold: true }, alignment: { horizontal: 'center' } };
+  }
+  SECTION_ORDER.forEach((s, i) => {
+    const color = SECTION_FILL[s] || 'FFFFFF';
+    for (let C = 0; C <= 2; C++) {
+      const addr = XLSX.utils.encode_cell({ r: i + 1, c: C });
+      if (ws2[addr]) ws2[addr].s = { fill: { fgColor: { rgb: color } } };
+    }
+  });
+  XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  XLSX.writeFile(wb, `xml_structure_report_${stamp}.xlsx`);
+});
+</script>
+</body>
+</html>

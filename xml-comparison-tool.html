@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>XML Before/After Compare Viewer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel-bg: #ffffff;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --border: #e2e4e9;
+    --header-bg: #1f2a44;
+    --header-text: #ffffff;
+    --line-num: #9aa0ab;
+    --added-bg: #d9f7e3;
+    --added-border: #34b566;
+    --removed-bg: #fde2e1;
+    --removed-border: #e5534b;
+    --modified-bg: #fff4cf;
+    --modified-border: #d9a71a;
+    --accent: #3f6fee;
+    --accent-text: #ffffff;
+    --modal-bg: #ffffff;
+    --modal-overlay: rgba(15, 18, 25, 0.55);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161c;
+      --panel-bg: #1b1e27;
+      --text: #e7e9ee;
+      --muted: #9aa0ab;
+      --border: #2c303c;
+      --header-bg: #0f1320;
+      --header-text: #eef0f5;
+      --line-num: #5c6270;
+      --added-bg: #133423;
+      --added-border: #2fa563;
+      --removed-bg: #3a1a1a;
+      --removed-border: #d9564f;
+      --modified-bg: #3a3115;
+      --modified-border: #d9a71a;
+      --accent: #6a8bf5;
+      --accent-text: #10131c;
+      --modal-bg: #1f2330;
+      --modal-overlay: rgba(0,0,0,0.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161c;
+    --panel-bg: #1b1e27;
+    --text: #e7e9ee;
+    --muted: #9aa0ab;
+    --border: #2c303c;
+    --header-bg: #0f1320;
+    --header-text: #eef0f5;
+    --line-num: #5c6270;
+    --added-bg: #133423;
+    --added-border: #2fa563;
+    --removed-bg: #3a1a1a;
+    --removed-border: #d9564f;
+    --modified-bg: #3a3115;
+    --modified-border: #d9a71a;
+    --accent: #6a8bf5;
+    --accent-text: #10131c;
+    --modal-bg: #1f2330;
+    --modal-overlay: rgba(0,0,0,0.6);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  .app { display: flex; flex-direction: column; height: 100vh; }
+
+  .toolbar {
+    background: var(--header-bg); color: var(--header-text);
+    padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    flex-shrink: 0;
+  }
+  .toolbar h1 { font-size: 15px; margin: 0 16px 0 0; font-weight: 600; white-space: nowrap; }
+  .file-slot {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 10px;
+  }
+  .file-slot label { font-size: 12px; opacity: 0.85; white-space: nowrap; }
+  .file-slot label input[type=checkbox] { margin-right: 4px; vertical-align: middle; }
+  .file-slot input[type=file] {
+    color: var(--header-text); font-size: 12px; max-width: 160px;
+  }
+  button {
+    font-size: 13px; font-weight: 600; border: none; border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; background: var(--accent); color: var(--accent-text);
+  }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghost {
+    background: transparent; color: var(--header-text); border: 1px solid rgba(255,255,255,0.35);
+  }
+  .status { font-size: 12px; opacity: 0.9; margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .legend { display: flex; gap: 12px; font-size: 11px; align-items: center; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+
+  .columns { flex: 1; display: flex; overflow: hidden; }
+  .panel { flex: 1; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border); }
+  .panel:last-child { border-right: none; }
+  .panel-header {
+    background: var(--panel-bg); border-bottom: 1px solid var(--border);
+    padding: 8px 14px; font-size: 12.5px; font-weight: 700; color: var(--muted);
+    letter-spacing: 0.03em; text-transform: uppercase; flex-shrink: 0;
+  }
+  .panel-body {
+    flex: 1; overflow: auto; background: var(--panel-bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.55;
+  }
+  .row { display: flex; white-space: pre; cursor: default; }
+  .row.clickable { cursor: pointer; }
+  .row.clickable:hover { filter: brightness(0.95); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .row.clickable:hover { filter: brightness(1.25); }
+  }
+  :root[data-theme="dark"] .row.clickable:hover { filter: brightness(1.25); }
+
+  .gutter {
+    flex-shrink: 0; width: 48px; text-align: right; padding: 0 8px;
+    color: var(--line-num); user-select: none; border-right: 1px solid var(--border);
+  }
+  .code { flex: 1; padding: 0 10px; overflow-x: auto; white-space: pre; }
+  .row.added { background: var(--added-bg); border-left: 3px solid var(--added-border); }
+  .row.removed { background: var(--removed-bg); border-left: 3px solid var(--removed-border); }
+  .row.modified { background: var(--modified-bg); border-left: 3px solid var(--modified-border); }
+  .row.blank .code { opacity: 0.35; }
+  .row .badge {
+    flex-shrink: 0; font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+    margin-right: 6px; align-self: center; letter-spacing: 0.02em;
+  }
+  .row.added .badge { background: var(--added-border); color: #06280f; }
+  .row.removed .badge { background: var(--removed-border); color: #2e0a08; }
+  .row.modified .badge { background: var(--modified-border); color: #2c2404; }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; color: var(--muted); font-size: 13px; text-align: center; padding: 40px;
+    gap: 8px;
+  }
+  .empty-state .big { font-size: 34px; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: var(--modal-overlay);
+    display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--modal-bg); border-radius: 12px; max-width: 640px; width: 100%;
+    max-height: 80vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    border: 1px solid var(--border);
+  }
+  .modal-head {
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-head h2 { font-size: 14px; margin: 0; }
+  .modal-head button { background: transparent; color: var(--muted); font-size: 18px; padding: 2px 8px; }
+  .modal-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-block h3 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 6px 0;
+  }
+  .modal-block pre {
+    margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 12.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre-wrap; word-break: break-word; border: 1px solid var(--border);
+  }
+  .modal-block.before pre { background: var(--removed-bg); border-color: var(--removed-border); }
+  .modal-block.after pre { background: var(--added-bg); border-color: var(--added-border); }
+  .modal-meta { font-size: 12px; color: var(--muted); }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+</style>
+</head>
+<body>
+<script src="js/auth.js"></script>
+<script>XMLCompareAuth.guard();</script>
+<div class="app">
+  <div class="toolbar">
+    <h1>XML Compare Viewer</h1>
+    <div class="file-slot">
+      <label>Before</label>
+      <input type="file" id="beforeFile" accept=".xml,.txt">
+    </div>
+    <div class="file-slot">
+      <label>After</label>
+      <input type="file" id="afterFile" accept=".xml,.txt">
+    </div>
+    <button id="compareBtn" disabled>Compare</button>
+    <button class="ghost" id="prettyPrintBtn" disabled title="Reformats the loaded Before/After XML with proper indentation (like Notepad++ XML Tools 'Pretty Print'), then re-compares">&#10022; Pretty Print</button>
+    <div class="file-slot" title="Ignores differences in id attribute values (e.g. id=&quot;MPS_d1e5&quot;) when comparing - these are often auto-generated and change every run">
+      <label><input type="checkbox" id="ignoreIdChk"> Ignore id changes</label>
+    </div>
+    <button class="ghost" id="downloadBtn" disabled title="Generates the detailed element/attribute-level Excel report">&#8681; Download Excel Report</button>
+    <button class="ghost" id="downloadHtmlBtn" disabled title="Generates a standalone, colour-coded HTML mistake report you can share/open in any browser">&#8681; Download HTML Report</button>
+    <button class="ghost" id="prevBtn" disabled>&#8593; Prev change</button>
+    <button class="ghost" id="nextBtn" disabled>&#8595; Next change</button>
+    <div class="status">
+      <div class="legend">
+        <span><span class="dot" style="background:var(--removed-border)"></span>Removed</span>
+        <span><span class="dot" style="background:var(--added-border)"></span>Added</span>
+        <span><span class="dot" style="background:var(--modified-border)"></span>Modified</span>
+      </div>
+      <span id="summary"></span>
+    </div>
+  </div>
+
+  <div class="columns" id="columns">
+    <div class="panel">
+      <div class="panel-header">Before</div>
+      <div class="panel-body" id="beforeBody">
+        <div class="empty-state"><div class="big">&#128193;</div>Upload your BEFORE xml file above, then click Compare.</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">After</div>
+      <div class="panel-body" id="afterBody">
+        <div class="empty-state"><div class="big">&#128193;</div>Upload your AFTER xml file above, then click Compare.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">Change detail</h2>
+      <button id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-meta" id="modalMeta"></div>
+      <div class="modal-block before" id="beforeBlock">
+        <h3>Before (line <span id="beforeLineNo">-</span>)</h3>
+        <pre id="beforeText"></pre>
+      </div>
+      <div class="modal-block after" id="afterBlock">
+        <h3>After (line <span id="afterLineNo">-</span>)</h3>
+        <pre id="afterText"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ---------------- XML tokenizer / tree builder (mirrors Python's expat + TreeBuilder) ----------------
+function decodeEntities(s) {
+  if (!s) return s;
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&amp;/g, '&');
+}
+
+function parseAttrs(attrStr) {
+  const attrs = {};
+  const re = /([a-zA-Z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+  let m;
+  while ((m = re.exec(attrStr)) !== null) {
+    attrs[m[1]] = decodeEntities(m[2] !== undefined ? m[2] : m[3]);
+  }
+  return attrs;
+}
+
+function makeNode(tag, attrs, line, selfClosed) {
+  return { tag, attrs, children: [], text: '', tail: '', line, selfClosed: !!selfClosed, _lastChild: null };
+}
+
+function parseXML(source) {
+  // Tag/comment/CDATA tokenizer
+  const re = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!DOCTYPE[\s\S]*?>|<(\/?)([a-zA-Z_:][\w:.-]*)((?:\s+[a-zA-Z_:][\w:.-]*\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>/g;
+  let lastIndex = 0;
+  let line = 1;
+  let m;
+  const stack = [];
+  let root = null;
+
+  function countLines(upto) {
+    for (let i = lastIndex; i < upto; i++) {
+      if (source.charCodeAt(i) === 10) line++;
+    }
+  }
+
+  function appendText(txt) {
+    if (!txt) return;
+    const decoded = decodeEntities(txt);
+    if (stack.length === 0) return;
+    const parent = stack[stack.length - 1];
+    if (parent._lastChild) {
+      parent._lastChild.tail += decoded;
+    } else {
+      parent.text += decoded;
+    }
+  }
+
+  while ((m = re.exec(source)) !== null) {
+    const matchStart = m.index;
+    // text before this match
+    const rawText = source.slice(lastIndex, matchStart);
+    countLines(matchStart);
+    lastIndex = matchStart; // advance now so we don't double-count this span later
+    appendText(rawText);
+
+    const whole = m[0];
+    if (whole.startsWith('<!--') || whole.startsWith('<![CDATA[') || whole.startsWith('<?') || whole.startsWith('<!DOCTYPE')) {
+      if (whole.startsWith('<![CDATA[')) {
+        const cdataContent = whole.slice(9, -3);
+        appendText(cdataContent);
+      }
+      countLines(re.lastIndex);
+      lastIndex = re.lastIndex;
+      continue;
+    }
+
+    const closing = m[1] === '/';
+    const tag = m[2];
+    const attrStr = m[3] || '';
+    const selfClose = m[4] === '/';
+
+    const tagLine = line; // line is already correct as of matchStart from the countLines() call above
+
+    if (closing) {
+      stack.pop();
+    } else {
+      const node = makeNode(tag, parseAttrs(attrStr), tagLine, selfClose);
+      if (stack.length > 0) {
+        const parent = stack[stack.length - 1];
+        parent.children.push(node);
+        parent._lastChild = node;
+      } else {
+        root = node;
+      }
+      if (!selfClose) {
+        stack.push(node);
+      }
+    }
+
+    countLines(re.lastIndex);
+    lastIndex = re.lastIndex;
+  }
+  return root;
+}
+
+// ---------------- Pretty Print (like Notepad++ XML Tools "Pretty Print") ----------------
+function escapeXmlText(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function escapeXmlAttr(s) {
+  return escapeXmlText(s).replace(/"/g, '&quot;');
+}
+
+function serializeAttrs(attrs) {
+  return Object.keys(attrs || {}).map((k) => ` ${k}="${escapeXmlAttr(attrs[k])}"`).join('');
+}
+
+function serializeNode(node, depth, indentStr) {
+  const indent = indentStr.repeat(depth);
+  const attrsStr = serializeAttrs(node.attrs);
+  if (node.selfClosed) {
+    return `${indent}<${node.tag}${attrsStr}/>`;
+  }
+  const textTrimmed = (node.text || '').trim();
+  if (node.children.length === 0) {
+    if (textTrimmed) {
+      return `${indent}<${node.tag}${attrsStr}>${escapeXmlText(textTrimmed)}</${node.tag}>`;
+    }
+    return `${indent}<${node.tag}${attrsStr}></${node.tag}>`;
+  }
+  const lines = [];
+  if (textTrimmed) lines.push(indentStr.repeat(depth + 1) + escapeXmlText(textTrimmed));
+  node.children.forEach((child) => {
+    lines.push(serializeNode(child, depth + 1, indentStr));
+    const tailTrimmed = (child.tail || '').trim();
+    if (tailTrimmed) lines.push(indentStr.repeat(depth + 1) + escapeXmlText(tailTrimmed));
+  });
+  return `${indent}<${node.tag}${attrsStr}>\n${lines.join('\n')}\n${indent}</${node.tag}>`;
+}
+
+// Reformats a raw XML string with 2-space indentation, one element per
+// line (leaf elements with only text stay on a single line) - the same
+// kind of output Notepad++'s "XML Tools -> Pretty Print" plugin produces.
+// Any leading <?xml ...?> declaration / DOCTYPE / comments before the
+// root element are preserved as-is.
+function prettyPrintXml(xmlString, indentStr) {
+  indentStr = indentStr || '  ';
+  const rootMatch = xmlString.match(/<([a-zA-Z_:][\w:.-]*)[\s>]/);
+  const prologEnd = rootMatch ? xmlString.indexOf(rootMatch[0]) : 0;
+  const prolog = xmlString.slice(0, prologEnd).trim();
+  const root = parseXML(xmlString);
+  if (!root) throw new Error('Could not find a root element to pretty-print.');
+  const body = serializeNode(root, 0, indentStr);
+  return (prolog ? prolog + '\n' : '') + body + '\n';
+}
+
+
+function norm(text) {
+  if (!text) return '';
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function elemKeyAttr(el) {
+  return (el.attrs && (el.attrs.class || el.attrs.id)) || '';
+}
+
+function elemSignature(el) {
+  const cls = elemKeyAttr(el);
+  const txt = norm(el.text).slice(0, 60);
+  return `${el.tag}|${cls}|${txt}`;
+}
+
+function elemSignatureLoose(el) {
+  return `${el.tag}|${elemKeyAttr(el)}`;
+}
+
+function shortDesc(el, maxLen = 80) {
+  if (!el) return '';
+  const cls = elemKeyAttr(el);
+  const label = `<${el.tag}` + (cls ? ` class='${cls}'` : '') + '>';
+  let txt = norm(el.text);
+  if (txt) {
+    if (txt.length > maxLen) txt = txt.slice(0, maxLen) + '...';
+    return `${label} ${txt}`;
+  }
+  return label;
+}
+
+function buildPath(parentPath, el, occIndex) {
+  const cls = elemKeyAttr(el);
+  let seg = cls ? `${el.tag}[@class='${cls}']` : el.tag;
+  if (occIndex > 1) seg += `[${occIndex}]`;
+  return parentPath ? `${parentPath}/${seg}` : `/${seg}`;
+}
+
+function occurrenceIndices(children) {
+  const counts = {};
+  return children.map((c) => {
+    const key = c.tag + '|' + elemKeyAttr(c);
+    counts[key] = (counts[key] || 0) + 1;
+    return counts[key];
+  });
+}
+
+// Generic Myers diff on arbitrary arrays compared with === , returns 'equal'/'delete'/'insert' per-item ops
+function diffArrays(a, b) {
+  const n = a.length, m = b.length;
+  const max = n + m;
+  const v = new Map();
+  v.set(1, 0);
+  const trace = [];
+  let found = max === 0;
+  for (let d = 0; d <= max && !found; d++) {
+    trace.push(new Map(v));
+    for (let k = -d; k <= d; k += 2) {
+      let x;
+      const vkm1 = v.has(k - 1) ? v.get(k - 1) : -Infinity;
+      const vkp1 = v.has(k + 1) ? v.get(k + 1) : -Infinity;
+      if (k === -d || (k !== d && vkm1 < vkp1)) {
+        x = vkp1 === -Infinity ? 0 : vkp1;
+      } else {
+        x = (vkm1 === -Infinity ? 0 : vkm1) + 1;
+      }
+      let y = x - k;
+      while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+      v.set(k, x);
+      if (x >= n && y >= m) { found = true; break; }
+    }
+  }
+  let x = n, y = m;
+  const ops = [];
+  for (let d = trace.length - 1; d >= 0; d--) {
+    const vv = trace[d];
+    const k = x - y;
+    const vkm1 = vv.has(k - 1) ? vv.get(k - 1) : -Infinity;
+    const vkp1 = vv.has(k + 1) ? vv.get(k + 1) : -Infinity;
+    let prevK;
+    if (k === -d || (k !== d && vkm1 < vkp1)) prevK = k + 1; else prevK = k - 1;
+    const prevX = vv.has(prevK) ? vv.get(prevK) : 0;
+    const prevY = prevX - prevK;
+    while (x > prevX && y > prevY) { ops.push({ type: 'equal', ax: x - 1, by: y - 1 }); x--; y--; }
+    if (d > 0) {
+      if (x === prevX) { ops.push({ type: 'insert', by: y - 1 }); y--; }
+      else { ops.push({ type: 'delete', ax: x - 1 }); x--; }
+    }
+  }
+  ops.reverse();
+  return ops;
+}
+
+function getOpcodes(aArr, bArr) {
+  const ops = diffArrays(aArr, bArr);
+  const opcodes = [];
+  let i = 0;
+  while (i < ops.length) {
+    if (ops[i].type === 'equal') {
+      const i1 = ops[i].ax, j1 = ops[i].by;
+      let i2 = i1, j2 = j1;
+      i++;
+      while (i < ops.length && ops[i].type === 'equal') { i2 = ops[i].ax; j2 = ops[i].by; i++; }
+      opcodes.push({ type: 'equal', i1, i2: i2 + 1, j1, j2: j2 + 1 });
+    } else {
+      const dels = [], inss = [];
+      while (i < ops.length && ops[i].type !== 'equal') {
+        if (ops[i].type === 'delete') dels.push(ops[i].ax); else inss.push(ops[i].by);
+        i++;
+      }
+      if (dels.length && inss.length) {
+        opcodes.push({ type: 'replace', i1: dels[0], i2: dels[dels.length - 1] + 1, j1: inss[0], j2: inss[inss.length - 1] + 1 });
+      } else if (dels.length) {
+        opcodes.push({ type: 'delete', i1: dels[0], i2: dels[dels.length - 1] + 1, j1: 0, j2: 0 });
+      } else if (inss.length) {
+        opcodes.push({ type: 'insert', i1: 0, i2: 0, j1: inss[0], j2: inss[inss.length - 1] + 1 });
+      }
+    }
+  }
+  return opcodes;
+}
+
+class Reporter {
+  constructor() { this.rows = []; }
+  add(path, changeType, before, after, beforeLine, afterLine) {
+    this.rows.push({ path, changeType, before, after, beforeLine: beforeLine || null, afterLine: afterLine || null });
+  }
+}
+
+function compareAttributes(path, beforeEl, afterEl, rep, ignoreAttrs) {
+  const b = Object.assign({}, beforeEl ? beforeEl.attrs : {});
+  const a = Object.assign({}, afterEl ? afterEl.attrs : {});
+  (ignoreAttrs || []).forEach((k) => { delete b[k]; delete a[k]; });
+  const keys = Array.from(new Set([...Object.keys(b), ...Object.keys(a)])).sort();
+  const bl = beforeEl ? beforeEl.line : null;
+  const al = afterEl ? afterEl.line : null;
+  keys.forEach((k) => {
+    const bv = Object.prototype.hasOwnProperty.call(b, k) ? b[k] : null;
+    const av = Object.prototype.hasOwnProperty.call(a, k) ? a[k] : null;
+    if (bv === av) return;
+    if (bv === null) rep.add(path, 'Attribute Added', '', `${k} = ${av}`, bl, al);
+    else if (av === null) rep.add(path, 'Attribute Removed', `${k} = ${bv}`, '', bl, al);
+    else rep.add(path, 'Attribute Modified', `${k} = ${bv}`, `${k} = ${av}`, bl, al);
+  });
+}
+
+function compareText(path, beforeEl, afterEl, rep) {
+  const bt = beforeEl ? beforeEl.text : null;
+  const at = afterEl ? afterEl.text : null;
+  if (norm(bt) === norm(at)) return;
+  rep.add(path, 'Text Modified', norm(bt), norm(at), beforeEl ? beforeEl.line : null, afterEl ? afterEl.line : null);
+}
+
+function compareTail(path, beforeEl, afterEl, rep) {
+  const bt = beforeEl ? beforeEl.tail : null;
+  const at = afterEl ? afterEl.tail : null;
+  if (norm(bt) === norm(at)) return;
+  rep.add(path, 'Trailing Text Modified', norm(bt), norm(at), beforeEl ? beforeEl.line : null, afterEl ? afterEl.line : null);
+}
+
+function recordAdded(path, el, rep) {
+  rep.add(path, 'Element Added', '', shortDesc(el), null, el.line);
+}
+function recordRemoved(path, el, rep) {
+  rep.add(path, 'Element Removed', shortDesc(el), '', el.line, null);
+}
+
+function diffChildren(parentPath, beforeEl, afterEl, rep, ignoreAttrs) {
+  const bChildren = beforeEl ? beforeEl.children : [];
+  const aChildren = afterEl ? afterEl.children : [];
+  const bSig = bChildren.map(elemSignature);
+  const aSig = aChildren.map(elemSignature);
+  const opcodes = getOpcodes(bSig, aSig);
+  const bOcc = occurrenceIndices(bChildren);
+  const aOcc = occurrenceIndices(aChildren);
+
+  opcodes.forEach((op) => {
+    if (op.type === 'equal') {
+      for (let bi = op.i1, aj = op.j1; bi < op.i2; bi++, aj++) {
+        const apath = buildPath(parentPath, aChildren[aj], aOcc[aj]);
+        compareElement(apath, bChildren[bi], aChildren[aj], rep, ignoreAttrs);
+      }
+    } else {
+      const bBlockIdx = [];
+      for (let i = op.i1; i < op.i2; i++) bBlockIdx.push(i);
+      const aBlockIdx = [];
+      for (let j = op.j1; j < op.j2; j++) aBlockIdx.push(j);
+      const bLoose = bBlockIdx.map((i) => elemSignatureLoose(bChildren[i]));
+      const aLoose = aBlockIdx.map((j) => elemSignatureLoose(aChildren[j]));
+      const opcodes2 = getOpcodes(bLoose, aLoose);
+      opcodes2.forEach((op2) => {
+        if (op2.type === 'equal') {
+          for (let bk = op2.i1, ak = op2.j1; bk < op2.i2; bk++, ak++) {
+            const bi = bBlockIdx[bk], aj = aBlockIdx[ak];
+            const apath = buildPath(parentPath, aChildren[aj], aOcc[aj]);
+            compareElement(apath, bChildren[bi], aChildren[aj], rep, ignoreAttrs);
+          }
+        } else if (op2.type === 'replace') {
+          const n = Math.min(op2.i2 - op2.i1, op2.j2 - op2.j1);
+          for (let k = 0; k < n; k++) {
+            const bi = bBlockIdx[op2.i1 + k], aj = aBlockIdx[op2.j1 + k];
+            const apath = buildPath(parentPath, aChildren[aj], aOcc[aj]);
+            compareElement(apath, bChildren[bi], aChildren[aj], rep, ignoreAttrs);
+          }
+          for (let k = n; k < op2.i2 - op2.i1; k++) {
+            const bi = bBlockIdx[op2.i1 + k];
+            const bpath = buildPath(parentPath, bChildren[bi], bOcc[bi]);
+            recordRemoved(bpath, bChildren[bi], rep);
+          }
+          for (let k = n; k < op2.j2 - op2.j1; k++) {
+            const aj = aBlockIdx[op2.j1 + k];
+            const apath = buildPath(parentPath, aChildren[aj], aOcc[aj]);
+            recordAdded(apath, aChildren[aj], rep);
+          }
+        } else if (op2.type === 'delete') {
+          for (let bk = op2.i1; bk < op2.i2; bk++) {
+            const bi = bBlockIdx[bk];
+            const bpath = buildPath(parentPath, bChildren[bi], bOcc[bi]);
+            recordRemoved(bpath, bChildren[bi], rep);
+          }
+        } else if (op2.type === 'insert') {
+          for (let ak = op2.j1; ak < op2.j2; ak++) {
+            const aj = aBlockIdx[ak];
+            const apath = buildPath(parentPath, aChildren[aj], aOcc[aj]);
+            recordAdded(apath, aChildren[aj], rep);
+          }
+        }
+      });
+    }
+  });
+}
+
+function compareElement(path, beforeEl, afterEl, rep, ignoreAttrs) {
+  compareAttributes(path, beforeEl, afterEl, rep, ignoreAttrs);
+  compareText(path, beforeEl, afterEl, rep);
+  compareTail(path, beforeEl, afterEl, rep);
+  diffChildren(path, beforeEl, afterEl, rep, ignoreAttrs);
+}
+
+function runCompare(beforeRoot, afterRoot, ignoreAttrs) {
+  const rep = new Reporter();
+  const rootPath = `/${afterRoot.tag}`;
+  if (beforeRoot.tag !== afterRoot.tag) {
+    rep.add(rootPath, 'Root Tag Modified', beforeRoot.tag, afterRoot.tag, beforeRoot.line, afterRoot.line);
+  }
+  compareElement(rootPath, beforeRoot, afterRoot, rep, ignoreAttrs || []);
+  return rep.rows;
+}
+
+
+(function () {
+  const beforeFileInput = document.getElementById('beforeFile');
+  const afterFileInput = document.getElementById('afterFile');
+  const compareBtn = document.getElementById('compareBtn');
+  const prettyPrintBtn = document.getElementById('prettyPrintBtn');
+  const ignoreIdChk = document.getElementById('ignoreIdChk');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const downloadHtmlBtn = document.getElementById('downloadHtmlBtn');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const summary = document.getElementById('summary');
+  const beforeBody = document.getElementById('beforeBody');
+  const afterBody = document.getElementById('afterBody');
+
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalMeta = document.getElementById('modalMeta');
+  const beforeLineNo = document.getElementById('beforeLineNo');
+  const afterLineNo = document.getElementById('afterLineNo');
+  const beforeText = document.getElementById('beforeText');
+  const afterText = document.getElementById('afterText');
+
+  let beforeContent = null;
+  let afterContent = null;
+  let isComparing = false;
+  let beforeFileName = 'before.xml';
+  let afterFileName = 'after.xml';
+  let diffChangeRows = []; // array of row ids (data-change-id) in order, for prev/next nav
+  let currentChangeIdx = -1;
+  let lastComparedRows = []; // full row set from the last comparison, used for Excel export
+
+  function readFile(input) {
+    return new Promise((resolve, reject) => {
+      const f = input.files[0];
+      if (!f) return resolve(null);
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsText(f);
+    });
+  }
+
+  function updateCompareEnabled() {
+    const ready = beforeContent !== null && afterContent !== null;
+    compareBtn.disabled = !ready || isComparing;
+    prettyPrintBtn.disabled = !ready || isComparing;
+    downloadBtn.disabled = !ready;
+    downloadHtmlBtn.disabled = !ready;
+  }
+
+  beforeFileInput.addEventListener('change', async () => {
+    beforeContent = await readFile(beforeFileInput);
+    beforeFileName = beforeFileInput.files[0] ? beforeFileInput.files[0].name : 'before.xml';
+    updateCompareEnabled();
+  });
+  afterFileInput.addEventListener('change', async () => {
+    afterContent = await readFile(afterFileInput);
+    afterFileName = afterFileInput.files[0] ? afterFileInput.files[0].name : 'after.xml';
+    updateCompareEnabled();
+  });
+
+  // ---------- Myers diff on lines (equal / delete / insert opcodes) ----------
+  function diffLines(a, b) {
+    const n = a.length, m = b.length;
+    let prefix = 0;
+    while (prefix < n && prefix < m && a[prefix] === b[prefix]) prefix++;
+
+    let suffix = 0;
+    while (suffix < n - prefix && suffix < m - prefix &&
+           a[n - suffix - 1] === b[m - suffix - 1]) suffix++;
+
+    const middleN = n - prefix - suffix;
+    const middleM = m - prefix - suffix;
+    const max = middleN + middleM;
+    const maxEditDistance = 500;
+    const v = new Map();
+    v.set(1, 0);
+    const trace = [];
+    let found = false;
+    for (let d = 0; d <= Math.min(max, maxEditDistance) && !found; d++) {
+      trace.push(new Map(v));
+      for (let k = -d; k <= d; k += 2) {
+        let x;
+        if (k === -d || (k !== d && (v.get(k - 1) ?? -Infinity) < (v.get(k + 1) ?? -Infinity))) {
+          x = v.get(k + 1) ?? 0;
+        } else {
+          x = (v.get(k - 1) ?? 0) + 1;
+        }
+        let y = x - k;
+        while (x < middleN && y < middleM && a[prefix + x] === b[prefix + y]) { x++; y++; }
+        v.set(k, x);
+        if (x >= middleN && y >= middleM) { found = true; break; }
+      }
+    }
+
+    const ops = [];
+    for (let i = 0; i < prefix; i++) {
+      ops.push({ type: 'equal', ax: i, by: i });
+    }
+
+    if (!found) {
+      // Keep rendering responsive when the middle of two very different,
+      // large files would make Myers' trace grow excessively.
+      for (let i = prefix; i < n - suffix; i++) ops.push({ type: 'delete', ax: i });
+      for (let i = prefix; i < m - suffix; i++) ops.push({ type: 'insert', by: i });
+    } else {
+      let x = middleN, y = middleM;
+      const middleOps = [];
+      for (let d = trace.length - 1; d >= 0; d--) {
+        const vv = trace[d];
+        const k = x - y;
+        let prevK;
+        if (k === -d || (k !== d && (vv.get(k - 1) ?? -Infinity) < (vv.get(k + 1) ?? -Infinity))) {
+          prevK = k + 1;
+        } else {
+          prevK = k - 1;
+        }
+        const prevX = vv.get(prevK) ?? 0;
+        const prevY = prevX - prevK;
+        while (x > prevX && y > prevY) {
+          middleOps.push({ type: 'equal', ax: prefix + x - 1, by: prefix + y - 1 });
+          x--; y--;
+        }
+        if (d > 0) {
+          if (x === prevX) {
+            middleOps.push({ type: 'insert', by: prefix + y - 1 });
+            y--;
+          } else {
+            middleOps.push({ type: 'delete', ax: prefix + x - 1 });
+            x--;
+          }
+        }
+      }
+      middleOps.reverse();
+      ops.push(...middleOps);
+    }
+
+    for (let i = suffix; i > 0; i--) {
+      ops.push({ type: 'equal', ax: n - i, by: m - i });
+    }
+    return ops;
+  }
+
+  // Merge consecutive delete+insert runs into paired "modified" rows for nicer side-by-side view
+  function buildAlignedRows(ops, a, b) {
+    const rows = [];
+    let i = 0;
+    while (i < ops.length) {
+      if (ops[i].type === 'equal') {
+        rows.push({ type: 'equal', beforeLine: ops[i].ax + 1, afterLine: ops[i].by + 1, beforeText: a[ops[i].ax], afterText: b[ops[i].by] });
+        i++;
+      } else {
+        const delRun = [];
+        const insRun = [];
+        while (i < ops.length && ops[i].type === 'delete') { delRun.push(ops[i]); i++; }
+        while (i < ops.length && ops[i].type === 'insert') { insRun.push(ops[i]); i++; }
+        const pairCount = Math.min(delRun.length, insRun.length);
+        for (let k = 0; k < pairCount; k++) {
+          rows.push({
+            type: 'modified',
+            beforeLine: delRun[k].ax + 1, afterLine: insRun[k].by + 1,
+            beforeText: a[delRun[k].ax], afterText: b[insRun[k].by]
+          });
+        }
+        for (let k = pairCount; k < delRun.length; k++) {
+          rows.push({ type: 'removed', beforeLine: delRun[k].ax + 1, afterLine: null, beforeText: a[delRun[k].ax], afterText: null });
+        }
+        for (let k = pairCount; k < insRun.length; k++) {
+          rows.push({ type: 'added', beforeLine: null, afterLine: insRun[k].by + 1, beforeText: null, afterText: b[insRun[k].by] });
+        }
+      }
+    }
+    return rows;
+  }
+
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  async function render(rows) {
+    beforeBody.innerHTML = '';
+    afterBody.innerHTML = '';
+    diffChangeRows = [];
+    let changeId = 0;
+
+    const chunkSize = 500;
+    for (let start = 0; start < rows.length; start += chunkSize) {
+      const beforeFrag = document.createDocumentFragment();
+      const afterFrag = document.createDocumentFragment();
+      const end = Math.min(start + chunkSize, rows.length);
+
+      for (let index = start; index < end; index++) {
+        const r = rows[index];
+        const isChange = r.type !== 'equal';
+        let cid = null;
+        if (isChange) { cid = changeId++; diffChangeRows.push(cid); }
+
+        const bRow = document.createElement('div');
+        bRow.className = 'row' + (r.beforeLine === null ? ' blank' : '') + (r.type !== 'equal' ? ' ' + r.type : '');
+        if (isChange) { bRow.classList.add('clickable'); bRow.dataset.changeId = cid; bRow.addEventListener('click', () => openModal(r)); }
+        const bGutter = document.createElement('div'); bGutter.className = 'gutter'; bGutter.textContent = r.beforeLine ?? '';
+        const bCode = document.createElement('div'); bCode.className = 'code'; bCode.innerHTML = escapeHtml(r.beforeLine !== null ? r.beforeText : '');
+        bRow.appendChild(bGutter); bRow.appendChild(bCode);
+        beforeFrag.appendChild(bRow);
+
+        const aRow = document.createElement('div');
+        aRow.className = 'row' + (r.afterLine === null ? ' blank' : '') + (r.type !== 'equal' ? ' ' + r.type : '');
+        if (isChange) { aRow.classList.add('clickable'); aRow.dataset.changeId = cid; aRow.addEventListener('click', () => openModal(r)); }
+        const aGutter = document.createElement('div'); aGutter.className = 'gutter'; aGutter.textContent = r.afterLine ?? '';
+        const aCode = document.createElement('div'); aCode.className = 'code'; aCode.innerHTML = escapeHtml(r.afterLine !== null ? r.afterText : '');
+        aRow.appendChild(aGutter); aRow.appendChild(aCode);
+        afterFrag.appendChild(aRow);
+      }
+
+      beforeBody.appendChild(beforeFrag);
+      afterBody.appendChild(afterFrag);
+      if (end < rows.length) {
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+    }
+
+    const added = rows.filter(r => r.type === 'added').length;
+    const removed = rows.filter(r => r.type === 'removed').length;
+    const modified = rows.filter(r => r.type === 'modified').length;
+    summary.textContent = `${added + removed + modified} changes  (Added ${added} / Removed ${removed} / Modified ${modified})`;
+
+    currentChangeIdx = -1;
+    prevBtn.disabled = diffChangeRows.length === 0;
+    nextBtn.disabled = diffChangeRows.length === 0;
+    lastComparedRows = rows;
+  }
+
+  let syncing = false;
+  function syncScroll(src, dst) {
+    src.addEventListener('scroll', () => {
+      if (syncing) return;
+      syncing = true;
+      dst.scrollTop = src.scrollTop;
+      requestAnimationFrame(() => { syncing = false; });
+    });
+  }
+  syncScroll(beforeBody, afterBody);
+  syncScroll(afterBody, beforeBody);
+
+  function openModal(r) {
+    const typeLabel = r.type === 'added' ? 'Element / Line Added' : r.type === 'removed' ? 'Element / Line Removed' : 'Line Modified';
+    modalTitle.textContent = typeLabel;
+    modalMeta.textContent = `Before line: ${r.beforeLine ?? '—'}    |    After line: ${r.afterLine ?? '—'}`;
+    beforeLineNo.textContent = r.beforeLine ?? '—';
+    afterLineNo.textContent = r.afterLine ?? '—';
+    beforeText.textContent = r.beforeLine !== null ? r.beforeText : '(not present)';
+    afterText.textContent = r.afterLine !== null ? r.afterText : '(not present)';
+    document.getElementById('beforeBlock').style.display = r.beforeLine !== null ? 'block' : 'none';
+    document.getElementById('afterBlock').style.display = r.afterLine !== null ? 'block' : 'none';
+    modalOverlay.classList.add('show');
+  }
+  document.getElementById('modalClose').addEventListener('click', () => modalOverlay.classList.remove('show'));
+  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.classList.remove('show'); });
+
+  function gotoChange(delta) {
+    if (diffChangeRows.length === 0) return;
+    currentChangeIdx = (currentChangeIdx + delta + diffChangeRows.length) % diffChangeRows.length;
+    const cid = diffChangeRows[currentChangeIdx];
+    const el = beforeBody.querySelector(`[data-change-id="${cid}"]`);
+    if (el) el.scrollIntoView({ block: 'center' });
+    document.querySelectorAll('.row').forEach(r => r.style.outline = '');
+    document.querySelectorAll(`[data-change-id="${cid}"]`).forEach(r => r.style.outline = '2px solid var(--accent)');
+  }
+  prevBtn.addEventListener('click', () => gotoChange(-1));
+  nextBtn.addEventListener('click', () => gotoChange(1));
+
+  // Colour used per Change Type - shared by the Excel export AND the
+  // standalone HTML report, so both downloads look consistent.
+  const CHANGE_TYPE_FILL = {
+    'Element Added': 'C6EFCE', 'Element Removed': 'FFC7CE',
+    'Attribute Added': 'DDEBF7', 'Attribute Removed': 'FCE4D6',
+    'Attribute Modified': 'FFF2CC', 'Text Modified': 'FFF2CC',
+    'Trailing Text Modified': 'FFF2CC', 'Root Tag Modified': 'FFC7CE'
+  };
+  const CHANGE_TYPE_TEXT = {
+    'Element Added': '006100', 'Element Removed': '9C0006',
+    'Attribute Added': '1F4E78', 'Attribute Removed': '974706',
+    'Attribute Modified': '7F6000', 'Text Modified': '7F6000',
+    'Trailing Text Modified': '7F6000', 'Root Tag Modified': '9C0006'
+  };
+
+  // Runs the detailed element/attribute-level XML compare and returns the
+  // row list. Used by BOTH the Excel export and the HTML report export so
+  // they always show the exact same set of mistakes.
+  function getDeepRows() {
+    const beforeRoot = parseXML(beforeContent);
+    const afterRoot = parseXML(afterContent);
+    const ignoreAttrs = (ignoreIdChk && ignoreIdChk.checked) ? ['id'] : [];
+    return runCompare(beforeRoot, afterRoot, ignoreAttrs);
+  }
+
+  // Word/token-level diff: highlights ONLY the part of the Before/After
+  // value that actually changed (e.g. "Rylander P.N." -> "P.N. Rylander"
+  // highlights just the reordered name, not the whole sentence).
+  function tokenizeForWordDiff(s) {
+    if (!s) return [];
+    return s.match(/\s+|[^\s]+/g) || [];
+  }
+
+  function wordDiffHtml(beforeStr, afterStr) {
+    const a = tokenizeForWordDiff(beforeStr);
+    const b = tokenizeForWordDiff(afterStr);
+    const ops = diffArrays(a, b);
+    let beforeHtml = '', afterHtml = '';
+    ops.forEach((op) => {
+      if (op.type === 'equal') {
+        const tok = escapeHtml(a[op.ax]);
+        beforeHtml += tok;
+        afterHtml += tok;
+      } else if (op.type === 'delete') {
+        beforeHtml += `<span class="worddiff-del">${escapeHtml(a[op.ax])}</span>`;
+      } else if (op.type === 'insert') {
+        afterHtml += `<span class="worddiff-ins">${escapeHtml(b[op.by])}</span>`;
+      }
+    });
+    return { beforeHtml, afterHtml };
+  }
+
+  const MODIFIED_CHANGE_TYPES = new Set(['Text Modified', 'Trailing Text Modified', 'Attribute Modified']);
+
+  function exportExcel() {
+    if (!beforeContent || !afterContent) return;
+
+    let deepRows;
+    try {
+      deepRows = getDeepRows();
+    } catch (err) {
+      alert('Could not run the detailed XML comparison (element/attribute level). ' +
+            'The visual line-by-line view above still works. Error: ' + err.message);
+      return;
+    }
+
+    const headers = ['S.No', 'Before Line No', 'After Line No', 'XML Location (Path)', 'Change Type', 'Before Value', 'After Value'];
+    const aoa = [headers];
+    deepRows.forEach((r, idx) => {
+      aoa.push([idx + 1, r.beforeLine ?? '', r.afterLine ?? '', r.path, r.changeType, r.before ?? '', r.after ?? '']);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 65 }, { wch: 22 }, { wch: 50 }, { wch: 50 }];
+    ws['!autofilter'] = { ref: `A1:G${aoa.length}` };
+
+    const headerFill = '305496';
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: 0, c: C });
+      if (ws[addr]) {
+        ws[addr].s = {
+          fill: { fgColor: { rgb: headerFill } },
+          font: { color: { rgb: 'FFFFFF' }, bold: true },
+          alignment: { horizontal: 'center', vertical: 'center' }
+        };
+      }
+    }
+    // Highlight the WHOLE mistake row (all 7 columns), not just the
+    // Change Type cell, so each row is easy to scan at a glance.
+    deepRows.forEach((r, idx) => {
+      const fill = CHANGE_TYPE_FILL[r.changeType];
+      const textColor = CHANGE_TYPE_TEXT[r.changeType];
+      if (!fill) return;
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const addr = XLSX.utils.encode_cell({ r: idx + 1, c: C });
+        if (ws[addr]) {
+          ws[addr].s = {
+            fill: { fgColor: { rgb: fill } },
+            font: { color: { rgb: textColor } }
+          };
+        }
+      }
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'XML Compare Report');
+
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    XLSX.writeFile(wb, `xml_compare_report_${stamp}.xlsx`);
+  }
+
+  function exportHtmlReport() {
+    if (!beforeContent || !afterContent) return;
+
+    let deepRows;
+    try {
+      deepRows = getDeepRows();
+    } catch (err) {
+      alert('Could not run the detailed XML comparison (element/attribute level). ' +
+            'The visual line-by-line view above still works. Error: ' + err.message);
+      return;
+    }
+
+    const added = deepRows.filter(r => r.changeType === 'Element Added').length;
+    const removed = deepRows.filter(r => r.changeType === 'Element Removed').length;
+    const attrChanges = deepRows.filter(r => r.changeType.startsWith('Attribute')).length;
+    const textChanges = deepRows.filter(r => r.changeType.includes('Text')).length;
+
+    const rowsHtml = deepRows.map((r, idx) => {
+      const cls = 'ct-' + r.changeType.replace(/\s+/g, '-').toLowerCase();
+      let beforeCell, afterCell;
+      if (MODIFIED_CHANGE_TYPES.has(r.changeType) && r.before && r.after) {
+        const { beforeHtml, afterHtml } = wordDiffHtml(r.before, r.after);
+        beforeCell = beforeHtml;
+        afterCell = afterHtml;
+      } else {
+        beforeCell = escapeHtml(r.before) || '<span class="muted">&mdash;</span>';
+        afterCell = escapeHtml(r.after) || '<span class="muted">&mdash;</span>';
+      }
+      return `<tr class="${cls}">
+        <td class="num">${idx + 1}</td>
+        <td class="num">${r.beforeLine ?? '&mdash;'}</td>
+        <td class="num">${r.afterLine ?? '&mdash;'}</td>
+        <td class="path">${escapeHtml(r.path)}</td>
+        <td class="type"><span class="badge">${escapeHtml(r.changeType)}</span></td>
+        <td class="val">${beforeCell}</td>
+        <td class="val">${afterCell}</td>
+      </tr>`;
+    }).join('\n');
+
+    const stamp = new Date().toLocaleString();
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>XML Mistake Report</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Arial, sans-serif; background:#f4f5f7; color:#1f2430; margin:0; padding:24px; }
+  h1 { font-size:18px; margin:0 0 4px 0; }
+  .meta { font-size:12px; color:#6b7280; margin-bottom:16px; }
+  .files { font-size:12px; color:#6b7280; margin-bottom:16px; }
+  .stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
+  .stat { background:#fff; border:1px solid #e2e4e9; border-radius:8px; padding:8px 14px; font-size:12.5px; }
+  .stat b { font-size:15px; display:block; }
+  table { border-collapse:collapse; width:100%; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+  thead th { background:#1f2a44; color:#fff; text-align:left; padding:8px 10px; font-size:12px; position:sticky; top:0; }
+  td { padding:7px 10px; font-size:12.5px; border-bottom:1px solid #eceef2; vertical-align:top; word-break:break-word; }
+  td.num { text-align:center; color:#6b7280; width:70px; }
+  td.path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:11.5px; color:#334; width:22%; }
+  td.type { width:150px; }
+  .badge { display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:10px; background:rgba(0,0,0,0.08); }
+  .muted { color:#a0a4ad; }
+  tr.ct-element-added        { background:#e6f6ea; }
+  tr.ct-element-removed      { background:#fde3e2; }
+  tr.ct-attribute-added      { background:#e7f1fb; }
+  tr.ct-attribute-removed    { background:#fdece0; }
+  tr.ct-attribute-modified   { background:#fff8df; }
+  tr.ct-text-modified        { background:#fff8df; }
+  tr.ct-trailing-text-modified { background:#fff8df; }
+  tr.ct-root-tag-modified    { background:#fde3e2; }
+  tr.ct-element-added .badge      { background:#c6efce; color:#006100; }
+  tr.ct-element-removed .badge    { background:#ffc7ce; color:#9c0006; }
+  tr.ct-attribute-added .badge    { background:#ddebf7; color:#1f4e78; }
+  tr.ct-attribute-removed .badge  { background:#fce4d6; color:#974706; }
+  tr.ct-attribute-modified .badge,
+  tr.ct-text-modified .badge,
+  tr.ct-trailing-text-modified .badge { background:#fff2cc; color:#7f6000; }
+  tr.ct-root-tag-modified .badge  { background:#ffc7ce; color:#9c0006; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; margin-bottom:14px; }
+  .legend span { display:inline-flex; align-items:center; gap:5px; }
+  .legend i { width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .worddiff-del { background:#f8b4b0; text-decoration:line-through; padding:0 2px; border-radius:2px; }
+  .worddiff-ins { background:#a8e6b5; padding:0 2px; border-radius:2px; }
+</style>
+</head>
+<body>
+  <h1>XML Mistake Report</h1>
+  <div class="meta">Generated ${stamp}</div>
+  <div class="files">Before: <b>${escapeHtml(beforeFileName)}</b> &nbsp;|&nbsp; After: <b>${escapeHtml(afterFileName)}</b></div>
+  <div class="stats">
+    <div class="stat"><b>${deepRows.length}</b>Total mistakes</div>
+    <div class="stat"><b>${added}</b>Elements added</div>
+    <div class="stat"><b>${removed}</b>Elements removed</div>
+    <div class="stat"><b>${attrChanges}</b>Attribute changes</div>
+    <div class="stat"><b>${textChanges}</b>Text changes</div>
+  </div>
+  <div class="legend">
+    <span><i style="background:#c6efce"></i>Added</span>
+    <span><i style="background:#ffc7ce"></i>Removed</span>
+    <span><i style="background:#ddebf7"></i>Attribute Added</span>
+    <span><i style="background:#fce4d6"></i>Attribute Removed</span>
+    <span><i style="background:#fff2cc"></i>Modified row</span>
+    <span><i style="background:#a8e6b5"></i>Exact word added</span>
+    <span><i style="background:#f8b4b0"></i>Exact word removed</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>S.No</th><th>Before Line</th><th>After Line</th><th>XML Path</th>
+        <th>Change Type</th><th>Before Value</th><th>After Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#9aa0ab">No differences found.</td></tr>'}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stampFile = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    a.href = url;
+    a.download = `xml_mistake_report_${stampFile}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  downloadBtn.addEventListener('click', exportExcel);
+  downloadHtmlBtn.addEventListener('click', exportHtmlReport);
+
+  async function runComparePipeline() {
+    if (beforeContent === null || afterContent === null || isComparing) return;
+    isComparing = true;
+    updateCompareEnabled();
+    summary.textContent = 'Comparing large XML files...';
+    try {
+      const aLines = beforeContent.replace(/\r\n/g, '\n').split('\n');
+      const bLines = afterContent.replace(/\r\n/g, '\n').split('\n');
+      const ops = diffLines(aLines, bLines);
+      const rows = buildAlignedRows(ops, aLines, bLines);
+      await render(rows);
+    } catch (err) {
+      summary.textContent = 'Comparison failed';
+      alert('Could not compare the XML files. Error: ' + err.message);
+    } finally {
+      isComparing = false;
+      updateCompareEnabled();
+    }
+  }
+
+  prettyPrintBtn.addEventListener('click', () => {
+    if (!beforeContent || !afterContent) return;
+    try {
+      beforeContent = prettyPrintXml(beforeContent);
+      afterContent = prettyPrintXml(afterContent);
+    } catch (err) {
+      alert('Pretty Print failed - the file may not be well-formed XML. Error: ' + err.message);
+      return;
+    }
+    // Re-run whichever view is currently active so the reformatted
+    // content shows immediately.
+    runComparePipeline();
+  });
+
+  compareBtn.addEventListener('click', runComparePipeline);
+})();
+</script>
+</body>
+</html>

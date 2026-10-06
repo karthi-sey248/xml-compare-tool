@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tag Structure Explorer — tx2.xhtml</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a1120;
+    --bg-grid:#0d1830;
+    --panel:#0f1a30;
+    --panel-2:#0c1526;
+    --line:#24466e;
+    --line-soft:#1a2f4d;
+    --ink:#dbe6f5;
+    --ink-dim:#7e93b5;
+    --ink-faint:#4d6087;
+    --pen:#5fb8ff;
+    --pen-glow:rgba(95,184,255,.18);
+    --amber:#f0b25c;
+    --mint:#5fe0b5;
+    --coral:#ff8f7d;
+    --violet:#b79bff;
+    --mono:'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+    --sans:'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  }
+  :root:not([data-theme="light"]){ color-scheme: dark; }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#eef2f8; --bg-grid:#e6ecf5; --panel:#ffffff; --panel-2:#f4f7fb;
+      --line:#c3d2e6; --line-soft:#d8e2f0; --ink:#16233b; --ink-dim:#5b6f8f;
+      --ink-faint:#93a4bf; --pen:#1c6fd1; --pen-glow:rgba(28,111,209,.12);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#eef2f8; --bg-grid:#e6ecf5; --panel:#ffffff; --panel-2:#f4f7fb;
+    --line:#c3d2e6; --line-soft:#d8e2f0; --ink:#16233b; --ink-dim:#5b6f8f;
+    --ink-faint:#93a4bf; --pen:#1c6fd1; --pen-glow:rgba(28,111,209,.12);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:
+      linear-gradient(var(--bg-grid) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px) 0 0/28px 28px,
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{ max-width:1180px; margin:0 auto; padding:28px 20px 60px; }
+
+  /* header */
+  .hdr{
+    border:1px solid var(--line);
+    background:var(--panel);
+    border-radius:2px;
+    padding:20px 22px;
+    position:relative;
+    overflow:hidden;
+  }
+  .hdr::before{
+    content:"";
+    position:absolute; inset:0;
+    background:
+      repeating-linear-gradient(45deg, var(--pen-glow) 0 1px, transparent 1px 14px);
+    opacity:.35; pointer-events:none;
+  }
+  .hdr-tag{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:11px; letter-spacing:.06em;
+    color:var(--pen); border:1px solid var(--line); padding:3px 8px;
+    border-radius:2px; background:var(--panel-2);
+  }
+  .hdr-tag::before{ content:"◈"; }
+  h1{
+    font-family:var(--mono); font-weight:600; font-size:clamp(18px,2.4vw,25px);
+    margin:14px 0 6px; line-height:1.35; color:var(--ink); max-width:780px;
+  }
+  .hdr-meta{
+    display:flex; flex-wrap:wrap; gap:14px 24px; margin-top:10px;
+    font-family:var(--mono); font-size:12.5px; color:var(--ink-dim);
+  }
+  .hdr-meta b{ color:var(--ink-faint); font-weight:500; }
+
+  /* toolbar */
+  .toolbar{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    margin-top:18px;
+  }
+  .btn{
+    font-family:var(--mono); font-size:12px; color:var(--ink-dim);
+    background:var(--panel); border:1px solid var(--line);
+    padding:8px 12px; border-radius:2px; cursor:pointer;
+    transition:border-color .12s, color .12s;
+  }
+  .btn:hover{ border-color:var(--pen); color:var(--pen); }
+  .btn.active{ border-color:var(--pen); color:var(--pen); background:var(--pen-glow); }
+  .search{
+    flex:1; min-width:180px;
+    font-family:var(--mono); font-size:12.5px; color:var(--ink);
+    background:var(--panel); border:1px solid var(--line); border-radius:2px;
+    padding:8px 12px;
+  }
+  .search::placeholder{ color:var(--ink-faint); }
+  .search:focus, .btn:focus-visible{ outline:2px solid var(--pen); outline-offset:1px; }
+
+  .fileinput{ display:none; }
+
+  /* layout */
+  .layout{ display:grid; grid-template-columns:220px 1fr; gap:16px; margin-top:16px; }
+  @media (max-width:760px){ .layout{ grid-template-columns:1fr; } }
+
+  .rail{
+    border:1px solid var(--line); background:var(--panel); border-radius:2px;
+    padding:10px; align-self:start; position:sticky; top:16px;
+  }
+  .rail-label{
+    font-family:var(--mono); font-size:10px; letter-spacing:.1em; color:var(--ink-faint);
+    padding:4px 8px 8px; text-transform:uppercase;
+  }
+  .tab{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    width:100%; text-align:left; background:transparent; border:1px solid transparent;
+    color:var(--ink-dim); font-family:var(--mono); font-size:13px;
+    padding:9px 10px; border-radius:2px; cursor:pointer; margin-bottom:3px;
+  }
+  .tab:hover{ border-color:var(--line-soft); color:var(--ink); }
+  .tab.active{ background:var(--panel-2); border-color:var(--accent); color:var(--ink); }
+  .tab .n{ font-size:10px; color:var(--ink-faint); }
+  .tab.active .n{ color:var(--accent); }
+  .tab .sw{ width:7px; height:7px; border-radius:1px; background:var(--accent); flex:none; }
+
+  .main{
+    border:1px solid var(--line); background:var(--panel); border-radius:2px;
+    padding:18px 18px 22px; min-height:420px;
+  }
+  .section-head{
+    display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;
+    border-bottom:1px dashed var(--line-soft); padding-bottom:12px; margin-bottom:14px;
+  }
+  .section-head h2{
+    font-family:var(--mono); font-size:15px; margin:0; color:var(--ink);
+  }
+  .section-head h2 .cls{ color:var(--accent); }
+  .section-head .count{ font-family:var(--mono); font-size:11.5px; color:var(--ink-faint); }
+
+  /* tree */
+  .tree{ font-family:var(--mono); font-size:13px; }
+  .node{ position:relative; }
+  .node-row{
+    display:flex; align-items:center; gap:8px; padding:5px 6px;
+    border-radius:2px; cursor:pointer; user-select:none;
+  }
+  .node-row:hover{ background:var(--panel-2); }
+  .node-row.match{ box-shadow: inset 2px 0 0 var(--pen); }
+  .node-row .arrow{
+    width:14px; height:14px; flex:none; display:flex; align-items:center; justify-content:center;
+    color:var(--ink-faint); transition:transform .12s;
+    font-size:10px;
+  }
+  .node-row .arrow.open{ transform:rotate(90deg); color:var(--pen); }
+  .node-row .arrow.leaf{ color:var(--ink-faint); opacity:.4; }
+  .tag-name{ color:var(--ink); }
+  .tag-cls{ color:var(--accent); }
+  .child-count{ color:var(--ink-faint); font-size:11px; margin-left:2px; }
+  .leaf-badge{ color:var(--ink-faint); font-size:11px; margin-left:2px; font-style:italic; }
+  .children{
+    margin-left:16px; padding-left:12px;
+    border-left:1px dashed var(--line-soft);
+    display:none;
+  }
+  .children.open{ display:block; }
+  .cycle-note{ color:var(--ink-faint); font-size:11.5px; font-style:italic; padding:4px 6px; }
+
+  .empty{ color:var(--ink-faint); font-family:var(--mono); font-size:13px; padding:20px 4px; }
+
+  .drop{
+    margin-top:16px; border:1px dashed var(--line); border-radius:2px;
+    padding:16px; text-align:center; font-family:var(--mono); font-size:12px;
+    color:var(--ink-faint); background:var(--panel-2);
+  }
+  .drop.drag{ border-color:var(--pen); color:var(--pen); }
+  .drop b{ color:var(--ink-dim); }
+
+  footer{
+    margin-top:22px; font-family:var(--mono); font-size:11px; color:var(--ink-faint);
+    text-align:center;
+  }
+</style>
+<script src="js/auth.js"></script>
+<script>XMLCompareAuth.guard();</script>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <span class="hdr-tag">tag structure schema</span>
+    <h1 id="articleTitle">—</h1>
+    <div class="hdr-meta">
+      <span><b>file</b> <span id="metaFile">—</span></span>
+      <span><b>journal</b> <span id="metaJid">—</span></span>
+      <span><b>doi</b> <span id="metaDoi">—</span></span>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input class="search" id="searchBox" type="text" placeholder="find a tag, e.g. div.author or span.delim …">
+    <button class="btn" id="expandAllBtn">expand all</button>
+    <button class="btn" id="collapseAllBtn">collapse all</button>
+    <button class="btn" id="loadBtn">↑ load a different xml / xhtml file</button>
+    <input type="file" id="fileInput" class="fileinput" accept=".xml,.xhtml,.html,.htm,text/xml,application/xml">
+  </div>
+
+  <div class="layout">
+    <div class="rail">
+      <div class="rail-label">Document sections</div>
+      <div id="tabList"></div>
+    </div>
+    <div class="main">
+      <div class="section-head">
+        <h2 id="sectionTitle">—</h2>
+        <span class="count" id="sectionCount">—</span>
+      </div>
+      <div class="tree" id="treeRoot"></div>
+    </div>
+  </div>
+
+  <div class="drop" id="dropZone">
+    or drag &amp; drop an <b>.xml / .xhtml</b> file anywhere on this page to analyse its tag structure instead
+  </div>
+
+  <footer>attributes stripped · content stripped · repeated same tag+class under a parent collapsed to one entry — click a tag to reveal its child tags</footer>
+</div>
+
+<script>
+/* ---------- embedded analysis of tx2.xhtml ---------- */
+const EMBEDDED_DATA = {"fileName": "tx2.xhtml", "meta": {"jid": "CATTOD", "doi": "10.1016/j.cattod.2024.114940", "title": "Practical and scalable hydrogenation of nitro compounds using palladium-based nanocatalyst under ambient conditions"}, "root": {"key": "article", "children": ["item-info", "div.front", "div.body", "div.back"]}, "sections": {"item-info": {"rootKey": "item-info", "schema": {"item-info": ["jid", "aid", "article-number", "pii", "doi", "copyright"], "jid": [], "aid": [], "article-number": [], "pii": [], "doi": [], "copyright": []}}, "div.front": {"rootKey": "div.front", "schema": {"div.front": ["div.articlemeta"], "div.articlemeta": ["div.titlegroup", "div.author-group", "div.history", "div.abstractgroup", "div.keywordgroup", "div.das"], "div.titlegroup": ["div.title"], "div.title": [], "div.author-group": ["div.authors", "div.affiliations", "div.corresp"], "div.authors": ["div.author"], "div.author": ["span.given-name", "span.surname", "span.contributor-role", "span.cite", "span.commentcontent"], "span.given-name": [], "span.surname": [], "span.contributor-role": [], "span.cite": [], "span.commentcontent": ["span.comment-text"], "span.comment-text": [], "div.affiliations": ["div.aff"], "div.aff": ["span.label", "span.orgdiv", "span.delim", "span.addrLine", "span.pincode", "span.city", "span.country", "span.university", "span.text", "span.state"], "span.label": ["sup"], "span.orgdiv": [], "span.delim": [], "span.addrLine": [], "span.pincode": [], "span.city": [], "span.country": [], "span.university": [], "span.text": [], "span.state": [], "div.corresp": ["span.label", "div.textfn"], "sup": [], "div.textfn": ["span.cor"], "span.cor": ["span.email", "u"], "span.email": [], "u": [], "div.history": ["div.date-received", "div.date-revised", "div.date-accepted"], "div.date-received": ["span.day", "span.month", "span.date"], "span.day": [], "span.month": [], "span.date": [], "div.date-revised": ["span.day", "span.month", "span.date"], "div.date-accepted": ["span.day", "span.month", "span.date"], "div.abstractgroup": ["div.abstract"], "div.abstract": ["div.title", "div.para"], "div.para": ["sub", "ul.bullet"], "sub": [], "ul.bullet": ["li"], "li": ["div.listpara"], "div.listpara": ["sub"], "div.keywordgroup": ["div.title", "span.keyword"], "span.keyword": ["sub"], "div.das": ["div.title", "div.para"]}}, "div.body": {"rootKey": "div.body", "schema": {"div.body": ["div.sections"], "div.sections": ["section.section"], "section.section": ["h1.sectiontitle", "div.para", "section.section", "h2.sectiontitle", "div.tablefixed", "figure", "div.tablewarp"], "h1.sectiontitle": ["span.label"], "span.label": [], "div.para": ["span.cite", "sub", "sup", "b"], "span.cite": [], "sub": ["i"], "h2.sectiontitle": ["span.label", "i", "sub"], "sup": [], "b": [], "div.tablefixed": ["div.tablediv"], "div.tablediv": ["table"], "table": ["thead", "tbody"], "thead": ["tr"], "tr": ["th", "td"], "th": [], "tbody": ["tr"], "td": ["span.breaktbl", "sub", "sup"], "span.breaktbl": [], "figure": ["span.label", "figcaption"], "figcaption": ["span.figpara"], "span.figpara": ["sub", "b", "sup"], "div.tablewarp": ["span.label", "div.caption", "div.tablediv"], "div.caption": ["span.para"], "span.para": ["sub"], "i": ["span.label"]}}, "div.back": {"rootKey": "div.back", "schema": {"div.back": ["div.reflist"], "div.reflist": ["div.title", "div.bib-reference"], "div.title": [], "div.bib-reference": ["span.reflabel", "div.journal", "div.book"], "span.reflabel": [], "div.journal": ["span.authors", "span.delim", "span.maintitle", "span.date", "span.subtitle", "span.volume-nr", "span.first-page", "span.last-page", "span.articlenumber"], "span.authors": ["span.author", "span.delim"], "span.author": ["span.given-name", "span.delim", "span.surname"], "span.given-name": [], "span.delim": [], "span.surname": [], "span.maintitle": [], "span.date": [], "div.book": ["span.authors", "span.delim", "span.subtitle", "span.publishername", "span.location", "span.date"], "span.subtitle": [], "span.publishername": [], "span.location": [], "span.volume-nr": [], "span.first-page": [], "span.last-page": [], "span.articlenumber": []}}}};
+
+/* ---------- state ---------- */
+let DATA = EMBEDDED_DATA;
+let currentSectionKey = DATA.root.children[0];
+let expanded = new Set();          // path ids currently expanded
+let searchTerm = "";
+
+const ACCENTS = ["#5fb8ff","#f0b25c","#5fe0b5","#ff8f7d","#b79bff","#ffd166"];
+function accentFor(i){ return ACCENTS[i % ACCENTS.length]; }
+
+/* ---------- generic tag-schema builder (mirrors the python analysis) ---------- */
+function nodeKey(el){
+  const cls = el.getAttribute && el.getAttribute('class');
+  const tag = el.tagName ? el.tagName.toLowerCase() : el.nodeName.toLowerCase();
+  return cls ? `${tag}.${cls}` : tag;
+}
+function buildSchema(rootEl){
+  const schema = {}; // key -> Map (insertion-ordered, deduped) of child keys, in document order
+  (function visit(el){
+    const k = nodeKey(el);
+    if(!schema[k]) schema[k] = new Map();
+    for(const child of Array.from(el.children || [])){
+      const ck = nodeKey(child);
+      schema[k].set(ck, true); // Map preserves first-insertion order, dedups automatically
+      visit(child);
+    }
+  })(rootEl);
+  const out = {};
+  for(const k in schema) out[k] = Array.from(schema[k].keys());
+  return out;
+}
+function analyseDocument(docEl, fileName){
+  const rootKey = nodeKey(docEl);
+  const sections = {};
+  const rootChildren = [];
+  for(const child of Array.from(docEl.children || [])){
+    const k = nodeKey(child);
+    rootChildren.push(k);
+    sections[k] = { rootKey:k, schema: buildSchema(child) };
+  }
+  // fallback: element itself has no element children (flat/leaf root) -> treat whole doc as one section
+  if(rootChildren.length === 0){
+    sections[rootKey] = { rootKey, schema: buildSchema(docEl) };
+    rootChildren.push(rootKey);
+  }
+  return {
+    fileName,
+    meta: { jid:null, doi:null, title:null },
+    root: { key: rootKey, children: rootChildren },
+    sections
+  };
+}
+
+function parseFileText(text, fileName){
+  let doc = null, method = "xml";
+  try{
+    const xdoc = new DOMParser().parseFromString(text, "application/xml");
+    if(xdoc.querySelector("parsererror")) throw new Error("xml parse error");
+    doc = xdoc;
+  }catch(e){
+    method = "html";
+    doc = new DOMParser().parseFromString(text, "text/html");
+  }
+  const root = (method === "xml") ? doc.documentElement : (doc.body || doc.documentElement);
+  return analyseDocument(root, fileName);
+}
+
+/* ---------- rendering ---------- */
+function render(){
+  document.getElementById('metaFile').textContent = DATA.fileName || "—";
+  document.getElementById('metaJid').textContent = (DATA.meta && DATA.meta.jid) || "—";
+  document.getElementById('metaDoi').textContent = (DATA.meta && DATA.meta.doi) || "—";
+  document.getElementById('articleTitle').textContent = (DATA.meta && DATA.meta.title) || DATA.root.key;
+
+  renderTabs();
+  renderTree();
+}
+
+function labelParts(key){
+  const dot = key.indexOf('.');
+  if(dot === -1) return { tag:key, cls:null };
+  return { tag:key.slice(0,dot), cls:key.slice(dot+1) };
+}
+
+function renderTabs(){
+  const list = document.getElementById('tabList');
+  list.innerHTML = "";
+  DATA.root.children.forEach((key, i) => {
+    const sec = DATA.sections[key];
+    const count = sec ? Object.keys(sec.schema).length : 0;
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (key === currentSectionKey ? ' active' : '');
+    btn.style.setProperty('--accent', accentFor(i));
+    const { tag, cls } = labelParts(key);
+    btn.innerHTML = `<span style="display:flex;align-items:center;gap:8px;overflow:hidden;">
+        <span class="sw"></span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${tag}${cls ? '<span class="tag-cls" style="color:var(--accent)">.'+cls+'</span>' : ''}</span>
+      </span>
+      <span class="n">${count}</span>`;
+    btn.addEventListener('click', () => {
+      currentSectionKey = key;
+      expanded.clear();
+      expanded.add(key); // auto-open the section root
+      render();
+    });
+    list.appendChild(btn);
+  });
+}
+
+function renderTree(){
+  const sec = DATA.sections[currentSectionKey];
+  const idx = DATA.root.children.indexOf(currentSectionKey);
+  const accent = accentFor(idx);
+  document.documentElement.style.setProperty('--accent-current', accent);
+
+  const { tag, cls } = labelParts(currentSectionKey);
+  document.getElementById('sectionTitle').innerHTML =
+    `<span class="tag-name">${tag}</span>${cls ? '<span class="cls" style="color:'+accent+'">.'+cls+'</span>' : ''}`;
+
+  const treeRoot = document.getElementById('treeRoot');
+  treeRoot.innerHTML = "";
+
+  if(!sec){
+    document.getElementById('sectionCount').textContent = "";
+    treeRoot.innerHTML = '<div class="empty">no data for this section.</div>';
+    return;
+  }
+  document.getElementById('sectionCount').textContent =
+    `${Object.keys(sec.schema).length} unique tag type(s) in this section`;
+
+  const node = buildNodeEl(sec.rootKey, sec.schema, [sec.rootKey], accent);
+  treeRoot.appendChild(node);
+}
+
+function buildNodeEl(key, schema, path, accent){
+  const pathId = path.join('>');
+  const children = schema[key] || [];
+  const hasChildren = children.length > 0;
+  const isCycle = path.slice(0,-1).includes(key);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'node';
+
+  const row = document.createElement('div');
+  row.className = 'node-row';
+  const { tag, cls } = labelParts(key);
+
+  const matches = searchTerm && key.toLowerCase().includes(searchTerm);
+  if(matches) row.classList.add('match');
+
+  const isOpen = expanded.has(pathId);
+
+  row.innerHTML = `
+    <span class="arrow ${hasChildren && !isCycle ? (isOpen ? 'open' : '') : 'leaf'}">${hasChildren && !isCycle ? '▸' : '·'}</span>
+    <span><span class="tag-name">${tag}</span>${cls ? '<span class="tag-cls" style="color:'+accent+'">.'+cls+'</span>' : ''}</span>
+    ${hasChildren && !isCycle ? `<span class="child-count">(${children.length} child tag${children.length>1?'s':''})</span>` : (isCycle ? '<span class="leaf-badge">recurses</span>' : '<span class="leaf-badge">leaf — no child tags</span>')}
+  `;
+
+  const childrenWrap = document.createElement('div');
+  childrenWrap.className = 'children' + (isOpen ? ' open' : '');
+
+  if(hasChildren && !isCycle){
+    row.addEventListener('click', () => {
+      if(expanded.has(pathId)) expanded.delete(pathId); else expanded.add(pathId);
+      renderTree();
+    });
+    if(isOpen){
+      children.forEach(ck => {
+        childrenWrap.appendChild(buildNodeEl(ck, schema, [...path, ck], accent));
+      });
+    }
+  } else if(isCycle){
+    childrenWrap.innerHTML = `<div class="cycle-note">↺ ${tag}${cls?'.'+cls:''} already shown higher up this branch</div>`;
+  }
+
+  wrap.appendChild(row);
+  wrap.appendChild(childrenWrap);
+  return wrap;
+}
+
+function expandAll(){
+  const sec = DATA.sections[currentSectionKey];
+  if(!sec) return;
+  (function walk(key, path){
+    const pathId = path.join('>');
+    if(path.slice(0,-1).includes(key)) return;
+    expanded.add(pathId);
+    (sec.schema[key]||[]).forEach(ck => walk(ck, [...path, ck]));
+  })(sec.rootKey, [sec.rootKey]);
+  renderTree();
+}
+function collapseAll(){
+  const sec = DATA.sections[currentSectionKey];
+  expanded.clear();
+  if(sec) expanded.add(sec.rootKey);
+  renderTree();
+}
+
+/* ---------- search: auto-expand paths containing a match ---------- */
+function applySearch(term){
+  searchTerm = term.trim().toLowerCase();
+  if(!searchTerm){ renderTree(); return; }
+  const sec = DATA.sections[currentSectionKey];
+  if(!sec) return;
+  const toExpand = new Set();
+  (function walk(key, path){
+    const pathId = path.join('>');
+    if(path.slice(0,-1).includes(key)) return;
+    if(key.toLowerCase().includes(searchTerm)){
+      for(let i=1;i<path.length;i++) toExpand.add(path.slice(0,i).join('>'));
+    }
+    (sec.schema[key]||[]).forEach(ck => walk(ck, [...path, ck]));
+  })(sec.rootKey, [sec.rootKey]);
+  toExpand.forEach(id => expanded.add(id));
+  renderTree();
+}
+
+/* ---------- file loading ---------- */
+function loadNewFile(file){
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const result = parseFileText(e.target.result, file.name);
+      DATA = result;
+      currentSectionKey = DATA.root.children[0];
+      expanded = new Set([currentSectionKey]);
+      searchTerm = "";
+      document.getElementById('searchBox').value = "";
+      render();
+    }catch(err){
+      alert("Could not analyse this file: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- wiring ---------- */
+document.getElementById('expandAllBtn').addEventListener('click', expandAll);
+document.getElementById('collapseAllBtn').addEventListener('click', collapseAll);
+document.getElementById('searchBox').addEventListener('input', (e) => applySearch(e.target.value));
+document.getElementById('loadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  if(e.target.files && e.target.files[0]) loadNewFile(e.target.files[0]);
+});
+
+const dz = document.getElementById('dropZone');
+['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, (e)=>{ e.preventDefault(); dz.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => dz.addEventListener(ev, (e)=>{ e.preventDefault(); dz.classList.remove('drag'); }));
+dz.addEventListener('drop', (e) => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f) loadNewFile(f);
+});
+document.addEventListener('dragover', (e)=>e.preventDefault());
+document.addEventListener('drop', (e)=>{
+  if(e.target === document.body || e.target === document.documentElement){
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) loadNewFile(f);
+  }
+});
+
+/* ---------- init ---------- */
+expanded.add(currentSectionKey);
+render();
+</script>
+</body>
+</html>

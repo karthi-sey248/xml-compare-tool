@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XML Compare Tool - Dashboard</title>
+<script src="js/auth.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;color:#1f2430}
+.header{height:64px;background:#1f2a44;color:#fff;display:flex;align-items:center;padding:0 28px}
+.header h1{font-size:18px;margin:0}.spacer{flex:1}.logout{background:transparent;color:#fff;border:1px solid #ffffff66;padding:8px 15px;border-radius:8px;cursor:pointer}
+main{max-width:1100px;margin:45px auto;padding:0 24px}.welcome{margin-bottom:28px}.welcome h2{margin:0 0 6px;font-size:28px}.welcome p{margin:0;color:#6b7280}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.card{background:#fff;border:1px solid #e2e4e9;border-radius:14px;padding:24px;min-height:210px;box-shadow:0 4px 14px rgba(20,30,50,.05);display:flex;flex-direction:column}
+.icon{font-size:30px}.card h3{margin:15px 0 8px}.card p{color:#6b7280;font-size:13px;line-height:1.5;flex:1}.open{display:inline-block;text-align:center;text-decoration:none;background:#3f6fee;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<script>XMLCompareAuth.guard();</script>
+<header class="header"><h1>XML Compare Tool</h1><div class="spacer"></div><button class="logout" onclick="XMLCompareAuth.logout()">Logout</button></header>
+<main>
+<div class="welcome"><h2>Tool Dashboard</h2><p>Select the tool you want to use.</p></div>
+<div class="grid">
+<div class="card"><div class="icon">🔍</div><h3>XML/XHTML Comparison</h3><p>Compare Before and After XML files and review added, removed and modified content.</p><a class="open" href="xml-comparison-tool.html">Open Tool</a></div>
+<div class="card"><div class="icon">🏷️</div><h3>Tag Structure Explorer</h3><p>Explore XML tag structure, classes, attributes and hierarchy.</p><a class="open" href="tag-structure-explorer.html">Open Tool</a></div>
+<div class="card"><div class="icon">📊</div><h3>XML Structure Analyzer</h3><p>Analyze XML/XHTML structure and generate the Excel structure report.</p><a class="open" href="xml_structure_analyzer.html">Open Tool</a></div>
+</div></main>
+</body></html>

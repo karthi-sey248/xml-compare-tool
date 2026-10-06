@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XML Compare Tool - Login</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Segoe UI,Arial,sans-serif;background:linear-gradient(135deg,#17213b,#3f6fee)}
+.login-card{width:380px;background:#fff;border-radius:18px;padding:36px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+h1{margin:0 0 8px;color:#1f2a44;font-size:25px}.sub{color:#6b7280;margin-bottom:28px;font-size:14px}
+label{display:block;font-size:13px;font-weight:600;margin:15px 0 7px;color:#374151}
+input{width:100%;padding:12px;border:1px solid #d7dbe3;border-radius:9px;font-size:14px}
+button{width:100%;margin-top:22px;padding:12px;border:0;border-radius:9px;background:#3f6fee;color:#fff;font-weight:700;cursor:pointer}
+.error{display:none;margin-top:12px;color:#c0392b;background:#fdecec;padding:9px;border-radius:7px;font-size:13px}
+.hint{margin-top:18px;font-size:12px;color:#8a8f9b;text-align:center}
+</style>
+<script src="js/auth.js"></script>
+</head>
+<body>
+<div class="login-card">
+<h1>XML Compare Tool</h1>
+<div class="sub">Sign in to access the XML processing tools</div>
+<form id="loginForm">
+<label>User ID</label><input id="userId" autocomplete="username" required>
+<label>Password</label><input id="password" type="password" autocomplete="current-password" required>
+<button type="submit">Login</button>
+<div id="error" class="error">Invalid User ID or Password.</div>
+</form>
+<div class="hint">Internal tool access</div>
+</div>
+<script>
+if(XMLCompareAuth.isLoggedIn()) location.href='index.html';
+document.getElementById('loginForm').addEventListener('submit',function(e){
+ e.preventDefault();
+ const ok=XMLCompareAuth.login(document.getElementById('userId').value.trim(),document.getElementById('password').value);
+ if(ok) location.href='index.html'; else document.getElementById('error').style.display='block';
+});
+</script>
+</body></html>
